@@ -34,7 +34,12 @@ class BraintreeHandler extends SprykerEcoBraintreeHandler
      */
     protected function setBraintreePayment(Request $request, QuoteTransfer $quoteTransfer, $paymentSelection)
     {
-        parent::setBraintreePayment($request, $quoteTransfer, $paymentSelection);
+        $braintreePaymentTransfer = $this->getBraintreePaymentTransfer($quoteTransfer, $paymentSelection);
+        $nonce = $request->request->get(self::PAYMENT_METHOD_NONCE);
+
+        if ($this->braintreeConfig->getFakePaymentMethodNonce()) {
+            $nonce = $this->braintreeConfig->getFakePaymentMethodNonce();
+        }
 
         if ($this->braintreeConfig->getFakePaymentMethodNonceShouldOverride()) {
             $nonce = $this->braintreeConfig->getFakePaymentMethodNonceMapping($paymentSelection);
@@ -44,5 +49,22 @@ class BraintreeHandler extends SprykerEcoBraintreeHandler
 
             $quoteTransfer->getPayment()->setBraintree(clone $braintreePaymentTransfer);
         }
+
+        if ($nonce === null) {
+            return;
+        }
+
+        $billingAddress = $quoteTransfer->getBillingAddress();
+        $braintreePaymentTransfer
+            ->setAccountBrand(static::$paymentMethods[$paymentSelection])
+            ->setBillingAddress($billingAddress)
+            ->setShippingAddress($quoteTransfer->getShippingAddress())
+            ->setEmail($quoteTransfer->getCustomer()->getEmail())
+            ->setCurrencyIso3Code($this->getCurrency())
+            ->setLanguageIso2Code($billingAddress->getIso2Code())
+            ->setClientIp($request->getClientIp())
+            ->setNonce($nonce);
+
+        $quoteTransfer->getPayment()->setBraintree(clone $braintreePaymentTransfer);
     }
 }
